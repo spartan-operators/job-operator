@@ -1,0 +1,20 @@
+# permissions for end users to view vrtestjobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vrtestjob-viewer-role
+rules:
+- apiGroups:
+  - job.vr.fmwk.com
+  resources:
+  - vrtestjobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - job.vr.fmwk.com
+  resources:
+  - vrtestjobs/status
+  verbs:
+  - get

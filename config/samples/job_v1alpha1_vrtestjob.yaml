@@ -1,0 +1,7 @@
+apiVersion: job.vr.fmwk.com/v1alpha1
+kind: VrTestJob
+metadata:
+  name: vrtestjob-sample
+spec:
+  # Add fields here
+  foo: bar
