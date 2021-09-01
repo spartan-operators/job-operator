@@ -39,7 +39,7 @@ spec:
               image:
                 description: Image name to be spawn as a job within the cluster
                 type: string
-              replicas:
+              retries:
                 description: How many instances should we run for a singe image name
                 format: int32
                 type: integer

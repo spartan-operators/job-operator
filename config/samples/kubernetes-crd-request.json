@@ -1,0 +1,14 @@
+{
+  "apiVersion": "job.vr.fmwk.com/v1alpha1",
+  "kind": "VrTestJob",
+  "metadata": {
+    "name": "vrtestjob-sample"
+  },
+  "spec": {
+    "image": "luksa/batch-job",
+    "retries": 1
+  },
+  "status": {
+    "nodes": [""]
+  }
+}

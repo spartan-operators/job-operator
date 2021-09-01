@@ -32,7 +32,7 @@ type VrTestJobSpec struct {
 	Image string `json:"image,omitempty"`
 
 	// How many instances should we run for a singe image name
-	Replicas int32 `json:"replicas,omitempty"`
+	Retries int32 `json:"retries,omitempty"`
 }
 
 // VrTestJobStatus defines the observed state of VrTestJob

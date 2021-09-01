@@ -4,4 +4,5 @@ metadata:
   name: vrtestjob-sample
 spec:
   # Add fields here
-  foo: bar
+  image: "luksa/batch-job:latest"
+  retries: 1
