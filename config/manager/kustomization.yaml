@@ -13,7 +13,7 @@ kind: Kustomization
 images:
 - name: controller
   newName: docker.io/dockvalkyrie/job-operator
-  newTag: v0.0.12
+  newTag: v0.0.18
 secretGenerator:
 - files:
   - .dockerconfigjson

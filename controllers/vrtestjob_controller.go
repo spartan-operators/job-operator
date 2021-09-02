@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	apiv1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,7 +74,7 @@ func (r *VrTestJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	found := &batchv1.Job{}
 	err = r.Get(ctx, types.NamespacedName{
 		Namespace: vrTestJob.ObjectMeta.Namespace,
-		Name:      vrTestJob.ObjectMeta.Name,
+		Name:      fmt.Sprintf("%s-%d", vrTestJob.Name, vrTestJob.Spec.Retries),
 	}, found)
 
 	log.Info("Input Information: ", "info", vrTestJob.ObjectMeta.String())
@@ -87,36 +88,42 @@ func (r *VrTestJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			log.Error(err, "****** Failed to create new Job ******", "Job.Namespace", job.Namespace, "Job.Name", job.Name)
 			return ctrl.Result{}, err
 		}
+		//update CR status with the pod names
+		updateStatus(&log, vrTestJob, r, &ctx)
 		// Job created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil
+
 	} else if err != nil && errors.IsAlreadyExists(err) {
 		log.Info("****** Requested Job already exists ******", "Job.Namespace", found.Namespace, "Job.Name", found.Name, "Job.Status", found.Status.String())
+
 		return ctrl.Result{Requeue: true}, nil
 	} else if jobStatus(&log, found) {
+		//update CR status with the pod names
+		updateStatus(&log, vrTestJob, r, &ctx)
+
+		// Job created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil
+
 	} else {
 		log.Error(err, "****** Failed to get the Job Spec ******")
 		return ctrl.Result{}, err
 	}
-
-	//reconcile size for Job replicas.
-	//update CR status with the pod names
-
-	//return ctrl.Result{}, nil
 }
 
 func testJobDescriptor(vrTestJob *jobv1alpha1.VrTestJob) *batchv1.Job {
 	metadata := &metav1.ObjectMeta{
-		Name:        vrTestJob.Name,
-		Namespace:   vrTestJob.Namespace,
-		Labels:      map[string]string{},
+		Name:      fmt.Sprintf("%s-%d", vrTestJob.Name, vrTestJob.Spec.Retries),
+		Namespace: vrTestJob.Namespace,
+		Labels: map[string]string{
+			"job_name": fmt.Sprintf("%s-%d", vrTestJob.Name, vrTestJob.Spec.Retries),
+		},
 		Annotations: map[string]string{},
 	}
 
 	podSpec := &apiv1.PodSpec{
 		Containers: []apiv1.Container{
 			{
-				Name:    fmt.Sprintf("%s-container", vrTestJob.Name),
+				Name:    fmt.Sprintf("%s-container-%d", vrTestJob.Name, vrTestJob.Spec.Retries),
 				Image:   vrTestJob.Spec.Image,
 				Command: []string{},
 				Args:    []string{},
@@ -160,6 +167,46 @@ func jobStatus(log *logr.Logger, jobSpec *batchv1.Job) bool {
 	}
 
 	return result
+}
+
+func updateStatus(log *logr.Logger, vrTestJob *jobv1alpha1.VrTestJob, r *VrTestJobReconciler, ctx *context.Context) {
+	podList := &corev1.PodList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(vrTestJob.Namespace),
+		client.MatchingLabels(labelsForTestJob(vrTestJob)),
+	}
+	if err := r.List(*ctx, podList, listOpts...); err != nil {
+		(*log).Error(err, "Failed to list pods", "Job.Namespace", vrTestJob.Namespace, "Job.Name", vrTestJob.Name)
+	}
+	podNames := getPodNames(podList.Items)
+
+	(*log).Info("****** Pods Retrieved ******", "Job.Pods", podNames)
+
+	if podNames != nil || len(podNames) > 0 {
+		// Update status.Nodes
+		(*vrTestJob).Status.Nodes = podNames
+		(*log).Info("****** VRTestCR Updated  ******", "CR.content", *vrTestJob)
+		if err := r.Status().Update(*ctx, vrTestJob); err != nil {
+			(*log).Error(err, "Failed to update Job status")
+		}
+
+	} else {
+		(*log).Info("****** VRTestCR NOT UPDATED since pod names are empty ******")
+	}
+}
+
+func labelsForTestJob(vrTestJob *jobv1alpha1.VrTestJob) map[string]string {
+	return map[string]string{
+		"job_name": fmt.Sprintf("%s-%d", vrTestJob.Name, vrTestJob.Spec.Retries),
+	}
+}
+
+func getPodNames(pods []corev1.Pod) []string {
+	var podNames []string
+	for _, pod := range pods {
+		podNames = append(podNames, pod.Name)
+	}
+	return podNames
 }
 
 // SetupWithManager sets up the controller with the Manager.
